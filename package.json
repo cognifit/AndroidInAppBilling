@@ -1,0 +1,12 @@
+{
+  "name": "Android InApp Billing Plugin",
+  "version": "1.0.0",
+  "description": "Fork of Android In App Billling Plugin",
+  "author": "CogniFit Team <support@cognifit.com>",
+  "license": "UNLICENSED",
+  "repository": {
+    "private": true
+  },
+  "private": true
+}
+
