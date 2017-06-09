@@ -99,6 +99,9 @@ public class IabHelper {
     // Public key for verifying signature, in base64 encoding
     String mSignatureBase64 = null;
 
+    // Varibale to check the response from the billing platform
+    int mResponse;
+
     // Billing response codes
     public static final int BILLING_RESPONSE_RESULT_OK = 0;
     public static final int BILLING_RESPONSE_RESULT_USER_CANCELED = 1;
@@ -217,6 +220,7 @@ public class IabHelper {
 
                     // check for in-app billing v3 support
                     int response = mService.isBillingSupported(3, packageName, ITEM_TYPE_INAPP);
+                    mResponse = response;
                     if (response != BILLING_RESPONSE_RESULT_OK) {
                         if (listener != null) listener.onIabSetupFinished(new IabResult(response,
                                 "Error checking for billing v3 support."));
@@ -362,7 +366,7 @@ public class IabHelper {
     public void launchPurchaseFlow(Activity act, String sku, String itemType, int requestCode,
                         OnIabPurchaseFinishedListener listener, String extraData) {
         checkNotDisposed();
-        checkSetupDone("launchPurchaseFlow");
+        checkSetupDone("launchPurchaseFlow", "launchPurchaseFlow");
         IabResult result;
 
         if (itemType.equals(ITEM_TYPE_SUBS) && !mSubscriptionsSupported) {
@@ -427,7 +431,7 @@ public class IabHelper {
         if (requestCode != mRequestCode) return false;
 
         checkNotDisposed();
-        checkSetupDone("handleActivityResult");
+        checkSetupDone("handleActivityResult", "handleActivityResult");
 
         if (data == null) {
             logError("Null data in IAB activity result.");
@@ -523,7 +527,7 @@ public class IabHelper {
     public Inventory queryInventory(boolean querySkuDetails, List<String> moreItemSkus,
                                         List<String> moreSubsSkus) throws IabException {
         checkNotDisposed();
-        checkSetupDone("queryInventory");
+        checkSetupDone("queryInventory", "Method: queryInventory." + " Disposed: " + mDisposed + ". Response: " + mResponse);
         try {
             Inventory inv = new Inventory();
             int r = queryPurchases(inv, ITEM_TYPE_INAPP);
@@ -592,7 +596,7 @@ public class IabHelper {
                                final QueryInventoryFinishedListener listener) {
         final Handler handler = new Handler();
         checkNotDisposed();
-        checkSetupDone("queryInventory");
+        checkSetupDone("queryInventory", "queryInventoryAsync " + " Disposed: " + mDisposed + ". Response: " + mResponse);
 
         (new Thread(new Runnable() {
             public void run() {
@@ -638,7 +642,7 @@ public class IabHelper {
      */
     void consume(Purchase itemInfo) throws IabException {
         checkNotDisposed();
-        checkSetupDone("consume");
+        checkSetupDone("consume", "consume");
 
         if (!itemInfo.mItemType.equals(ITEM_TYPE_INAPP)) {
             throw new IabException(IABHELPER_INVALID_CONSUMPTION,
@@ -706,7 +710,7 @@ public class IabHelper {
      */
     public void consumeAsync(Purchase purchase, OnConsumeFinishedListener listener) {
         checkNotDisposed();
-        checkSetupDone("consume");
+        checkSetupDone("consume", "consumeAsync");
         List<Purchase> purchases = new ArrayList<Purchase>();
         purchases.add(purchase);
         consumeAsyncInternal(purchases, listener, null);
@@ -719,7 +723,7 @@ public class IabHelper {
      */
     public void consumeAsync(List<Purchase> purchases, OnConsumeMultiFinishedListener listener) {
         checkNotDisposed();
-        checkSetupDone("consume");
+        checkSetupDone("consume", "consumeAsync");
         consumeAsyncInternal(purchases, null, listener);
     }
 
@@ -759,10 +763,10 @@ public class IabHelper {
 
 
     // Checks that setup was done; if not, throws an exception.
-    void checkSetupDone(String operation) {
+    void checkSetupDone(String operation, String message) {
         if (!mSetupDone) {
-            logError("Illegal state for operation (" + operation + "): IAB helper is not set up.");
-            throw new IllegalStateException("IAB helper is not set up. Can't perform operation: " + operation);
+            logError("Illegal state for operation (" + operation + "): IAB helper is not set up." + " MESSAGE: " + message);
+            throw new IllegalStateException("IAB helper is not set up. Can't perform operation: " + operation + ". MESSAGE: " + message);
         }
     }
 
