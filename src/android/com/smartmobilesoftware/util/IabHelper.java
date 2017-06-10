@@ -100,7 +100,7 @@ public class IabHelper {
     String mSignatureBase64 = null;
 
     // Varibale to check the response from the billing platform
-    int mResponse;
+    int mResponse = -1;
 
     // Billing response codes
     public static final int BILLING_RESPONSE_RESULT_OK = 0;
@@ -250,6 +250,9 @@ public class IabHelper {
                     }
                     e.printStackTrace();
                     return;
+                }
+                catch (Exception ex) {
+                    throw new IllegalStateException("IAB helper general Exception: " + ex.toString());
                 }
 
                 if (listener != null) {
