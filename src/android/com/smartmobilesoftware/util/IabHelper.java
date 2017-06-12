@@ -13,6 +13,12 @@
  * limitations under the License.
  */
 
+/**
+* Due to unexpected crashes we've modify this class in Cognifit with some changes from http://dimitar.me/in-app-billing-api-v3-throws-illegalstateexception/
+  - Use volatile variables
+  - Add try/catch to "dispose" method
+**/
+
 package com.smartmobilesoftware.util;
 
 import android.app.Activity;
@@ -75,13 +81,21 @@ public class IabHelper {
     String mDebugTag = "IabHelper";
 
     // Is setup done?
-    boolean mSetupDone = false;
+    volatile boolean mSetupDone = false;
 
     // Has this object been disposed of? (If so, we should ignore callbacks, etc)
-    boolean mDisposed = false;
+    volatile boolean mDisposed = false;
 
     // Are subscriptions supported?
-    boolean mSubscriptionsSupported = false;
+    volatile boolean mSubscriptionsSupported = false;
+
+    // Is an asynchronous operation in progress?
+    // (only one at a time can be in progress)
+    volatile boolean mAsyncInProgress = false;
+
+    // (for logging/debugging)
+    // if mAsyncInProgress == true, what asynchronous operation is in progress?
+    String mAsyncOperation = "";
 
     // Context we were passed during initialization
     Context mContext;
@@ -289,7 +303,12 @@ public class IabHelper {
         mSetupDone = false;
         if (mServiceConn != null) {
             logDebug("Unbinding from service.");
-            if (mContext != null) mContext.unbindService(mServiceConn);
+            try{
+                if (mContext != null) mContext.unbindService(mServiceConn);
+            } catch(IllegalArgumentException ex){ //ADDED THIS CATCH
+                //somehow, the service was already unregistered
+            	ex.printStackTrace();
+            }
         }
         mDisposed = true;
         mContext = null;
