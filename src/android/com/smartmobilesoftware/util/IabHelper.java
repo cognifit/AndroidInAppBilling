@@ -386,14 +386,16 @@ public class IabHelper {
      *     and will always be returned when the purchase is queried.
      */
     public void launchPurchaseFlow(Activity act, String sku, String itemType, int requestCode,
-                        OnIabPurchaseFinishedListener listener, String extraData) {
+                        OnIabPurchaseFinishedListener listener, String extraData) throws IllegalStateException {
         checkNotDisposed();
         checkSetupDone("launchPurchaseFlow", "launchPurchaseFlow");
+        flagStartAsync("launchPurchaseFlow");
         IabResult result;
 
         if (itemType.equals(ITEM_TYPE_SUBS) && !mSubscriptionsSupported) {
             IabResult r = new IabResult(IABHELPER_SUBSCRIPTIONS_NOT_AVAILABLE,
                     "Subscriptions are not available.");
+            flagEndAsync();
             if (listener != null) listener.onIabPurchaseFinished(r, null);
             return;
         }
@@ -404,6 +406,7 @@ public class IabHelper {
             int response = getResponseCodeFromBundle(buyIntentBundle);
             if (response != BILLING_RESPONSE_RESULT_OK) {
                 logError("Unable to buy item, Error response: " + getResponseDesc(response));
+                flagEndAsync();
                 result = new IabResult(response, "Unable to buy item");
                 if (listener != null) listener.onIabPurchaseFinished(result, null);
                 return;
@@ -422,6 +425,7 @@ public class IabHelper {
         catch (SendIntentException e) {
             logError("SendIntentException while launching purchase flow for sku " + sku);
             e.printStackTrace();
+            flagEndAsync();
 
             result = new IabResult(IABHELPER_SEND_INTENT_FAILED, "Failed to send intent.");
             if (listener != null) listener.onIabPurchaseFinished(result, null);
@@ -429,6 +433,7 @@ public class IabHelper {
         catch (RemoteException e) {
             logError("RemoteException while launching purchase flow for sku " + sku);
             e.printStackTrace();
+            flagEndAsync();
 
             result = new IabResult(IABHELPER_REMOTE_EXCEPTION, "Remote exception while starting purchase flow");
             if (listener != null) listener.onIabPurchaseFinished(result, null);
@@ -448,12 +453,15 @@ public class IabHelper {
      *     false if the result was not related to a purchase, in which case you should
      *     handle it normally.
      */
-    public boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
+    public boolean handleActivityResult(int requestCode, int resultCode, Intent data) throws IllegalStateException {
         IabResult result;
         if (requestCode != mRequestCode) return false;
 
         checkNotDisposed();
         checkSetupDone("handleActivityResult", "handleActivityResult");
+
+        // end of async purchase operation that started on launchPurchaseFlow
+        flagEndAsync();
 
         if (data == null) {
             logError("Null data in IAB activity result.");
@@ -615,10 +623,11 @@ public class IabHelper {
      */
     public void queryInventoryAsync(final boolean querySkuDetails,
                                final List<String> moreSkus,
-                               final QueryInventoryFinishedListener listener) {
+                               final QueryInventoryFinishedListener listener) throws IllegalStateException {
         final Handler handler = new Handler();
         checkNotDisposed();
         checkSetupDone("queryInventory", "queryInventoryAsync " + " Disposed: " + mDisposed + ". Response: " + mResponse);
+        flagStartAsync("refresh inventory");
 
         (new Thread(new Runnable() {
             public void run() {
@@ -630,6 +639,12 @@ public class IabHelper {
                 catch (IabException ex) {
                     result = ex.getResult();
                 }
+                catch(IllegalStateException ex){
+                    result = new IabResult(BILLING_RESPONSE_RESULT_ERROR, ex.getMessage());
+                    ex.printStackTrace();
+                }
+
+                flagEndAsync();
 
                 final IabResult result_f = result;
                 final Inventory inv_f = inv;
@@ -824,6 +839,20 @@ public class IabHelper {
         }
     }
 
+    void flagStartAsync(String operation) throws IllegalStateException {
+        if (mAsyncInProgress) throw new IllegalStateException("Can't start async operation (" +
+                operation + ") because another async operation(" + mAsyncOperation + ") is in progress.");
+        mAsyncOperation = operation;
+        mAsyncInProgress = true;
+        logDebug("Starting async operation: " + operation);
+    }
+
+    void flagEndAsync() {
+        logDebug("Ending async operation: " + mAsyncOperation);
+        mAsyncOperation = "";
+        mAsyncInProgress = false;
+    }
+
     int queryPurchases(Inventory inv, String itemType) throws JSONException, RemoteException {
         // Query purchases
         logDebug("Querying owned items, item type: " + itemType);
@@ -938,8 +967,9 @@ public class IabHelper {
 
     void consumeAsyncInternal(final List<Purchase> purchases,
                               final OnConsumeFinishedListener singleListener,
-                              final OnConsumeMultiFinishedListener multiListener) {
+                              final OnConsumeMultiFinishedListener multiListener) throws IllegalStateException {
         final Handler handler = new Handler();
+        flagStartAsync("consume");
 
         (new Thread(new Runnable() {
             public void run() {
@@ -953,6 +983,8 @@ public class IabHelper {
                         results.add(ex.getResult());
                     }
                 }
+
+                flagEndAsync();
 
                 if (!mDisposed && singleListener != null) {
                     handler.post(new Runnable() {
